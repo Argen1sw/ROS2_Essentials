@@ -13,10 +13,9 @@ class TurtleControllerNode(Node):
     def __init__(self):
         super().__init__("turtle_controller")
 
-        # self.target_x = random.randint(0, 10)
-        # self.target_y = random.randint(0, 10)
-        self.target_x = 7
-        self.target_y = 7
+        # First target will always be a point on top right side
+        self.target_x = 7.0
+        self.target_y = 7.0
         self.pose = None
 
         # pose subscriber
@@ -27,64 +26,60 @@ class TurtleControllerNode(Node):
         # cmd_vel publisher
         self.velocity_publisher = self.create_publisher(Twist, "/turtle1/cmd_vel", 10)
 
+        # Control loop that will be running every 0.01 s
+        self.timer_ = self.create_timer(0.01, self.loop_controller)
         self.get_logger().info("Turtle controller node has been started.")
-
-    # Next steps:
-    #   Create a control_loop, a random target will be created.
-    #   Robot needs to get to random target.
-    #   Once the robot has get to target, another target will be created.
-    #   Repeat
 
     def callback_pose(self, msg):
         # Extract the pose of the turtle
         self.pose = msg
-        
-        pose_x = self.pose.x 
-        pose_y = self.pose.y
-        # self.target_x = msg.x
-        # self.target_y = msg.y
+
+    def loop_controller(self):
+        """
+        Main control loop of turtle.
+        This controls the velocity, based on the current robot's pose
+        and target coordinates.
+        """
+        if self.pose == None:
+            return
 
         # Calculate the angular velocity needed
-        x_coheficient = pose_x - self.target_x
-        y_coheficient = pose_y - self.target_y
+        x_coheficient = self.target_x - self.pose.x
+        y_coheficient = self.target_y - self.pose.y
+        distance = math.sqrt(
+            x_coheficient * x_coheficient + y_coheficient * y_coheficient
+        )
 
-        distance = math.sqrt(x_coheficient * x_coheficient + y_coheficient * y_coheficient)
         twist_message = Twist()
 
-        if(distance >= 0.5):
-            
+        if distance >= 0.5:
             # Position
-            twist_message.linear.x = 2*distance
-            
+            twist_message.linear.x = 2 * distance
+
             # Orientation
             goal_theta = math.atan2(y_coheficient, x_coheficient)
             diff = goal_theta - self.pose.theta
             if diff > math.pi:
-                diff -= 2*math.pi
-            else:
-                diff += 2*math.pi
-            
-            twist_message.angular.z = 6*diff
+                diff -= 2 * math.pi
+            elif diff < -math.pi:
+                diff += 2 * math.pi
+
+            twist_message.angular.z = 6 * diff
         else:
             twist_message.linear.x = 0.0
             twist_message.angular.z = 0.0
-            self.update_target
-            self.get_logger().info("Target Updated Sucesfully")            
-        
-        
-        
-        self.velocity_publisher.publish(twist_message)
-        
+            self.update_target()
+            self.get_logger().info("Target Updated Sucesfully")
 
-        # # No rotation needed angular velocity = 0
-        # if x_coheficient == 0 or y_coheficient == 0:
-        #     angle_of_rotation = 0
-        # else:  # Calculates the angle of rotation needed
-        # angle_of_rotation = math.atan2(y_coheficient / x_coheficient)
-            
-        # self.get_logger().info(str(angle_of_rotation))
+        self.velocity_publisher.publish(twist_message)
 
     def update_target(self):
+        """
+        Method that Updates the target of the turtle
+        Useful for debugging the turtle trajectory and
+        control loop
+        """
+        self.get_logger().debug("This is a debug message from update_target")
         self.target_x = random.randint(0, 10)
         self.target_y = random.randint(0, 10)
 
