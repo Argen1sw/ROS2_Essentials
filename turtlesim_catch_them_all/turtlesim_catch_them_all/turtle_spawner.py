@@ -18,6 +18,8 @@ import math
 from rclpy.node import Node
 from turtlesim.srv import Spawn
 from functools import partial
+from my_robot_interfaces.msg import Turtle
+from my_robot_interfaces.msg import TurtleArray
 
 
 class TurtleSpawnerNode(Node):
@@ -27,17 +29,27 @@ class TurtleSpawnerNode(Node):
         self.prefix_name = "turtle"
         self.turtle_counter = 0
 
+        # Publisher of turtles array
+        self.alive_turtles_ = []
+        self.alive_turtles_publisher_ = self.create_publisher( 
+            TurtleArray, "alive_turtles", 10)
+
         # Calling the timer every once in a while
         self.spawn_turtle_timer_ = self.create_timer(3, self.spawn_turtle)
 
+    def publish_alive_turtles(self):
+        msg = TurtleArray()
+        msg.turtles = self.alive_turtles_
+        self.alive_turtles_publisher_.publish(msg)
+    
     def spawn_turtle(self):
         self.turtle_counter += 1
         name = self.prefix_name + str(self.turtle_counter)
-        
+
         self.turtle_spawner(turtle_name=name)
-        
 
     # Method that calls the service /spawn
+
     def turtle_spawner(self, turtle_name):
         # Initialize the client
         client = self.create_client(Spawn, "spawn")
@@ -65,6 +77,13 @@ class TurtleSpawnerNode(Node):
             response = future.result()
             if response.name != "":
                 self.get_logger().info("Turtle " + str(response.name) + " is now alive")
+                new_turtle = Turtle()
+                new_turtle.name = response.name
+                new_turtle.x = x
+                new_turtle.y = y
+                new_turtle.theta = theta
+                self.alive_turtles_.append(new_turtle)
+                self.publish_alive_turtles()
         except Exception as e:
             self.get_logger().error("Service call failed %r" % (e,))
 
