@@ -23,16 +23,20 @@ from my_robot_interfaces.msg import Turtle
 from my_robot_interfaces.msg import TurtleArray
 from my_robot_interfaces.srv import CatchTurtle
 
+
 class TurtleSpawnerNode(Node):
     def __init__(self):
         super().__init__("turtle_spawner")
+        self.declare_parameter("spawn_rate", 1.0)
+        self.declare_parameter("prefix_name", "turtle")
+        
         # Initializing a counter for the names of the turtles
-        self.prefix_name = "turtle"
+        self.prefix_name = self.get_parameter("prefix_name").value
         self.turtle_counter = 0
 
         # Publisher of turtles array
         self.alive_turtles_ = []
-        self.alive_turtles_publisher_ = self.create_publisher( 
+        self.alive_turtles_publisher_ = self.create_publisher(
             TurtleArray, "alive_turtles", 10)
 
         # Service to catch a turtle
@@ -41,7 +45,8 @@ class TurtleSpawnerNode(Node):
         )
 
         # Calling the timer every once in a while
-        self.spawn_turtle_timer_ = self.create_timer(3, self.spawn_turtle)
+        self.spawn_turtle_timer_ = self.create_timer(
+            self.get_parameter("spawn_rate").value, self.spawn_turtle)
 
     def callback_catch_turtle(self, request, response):
         self.call_kill_server(request.name)
@@ -52,7 +57,7 @@ class TurtleSpawnerNode(Node):
         msg = TurtleArray()
         msg.turtles = self.alive_turtles_
         self.alive_turtles_publisher_.publish(msg)
-    
+
     def spawn_turtle(self):
         self.turtle_counter += 1
         name = self.prefix_name + str(self.turtle_counter)
@@ -96,7 +101,6 @@ class TurtleSpawnerNode(Node):
                 self.publish_alive_turtles()
         except Exception as e:
             self.get_logger().error("Service call failed %r" % (e,))
-            
 
     def call_kill_server(self, turtle_name):
 
@@ -122,7 +126,6 @@ class TurtleSpawnerNode(Node):
                     break
         except Exception as e:
             self.get_logger().error("Service call failed %r" % (e,))
-    
 
 
 def main(args=None):

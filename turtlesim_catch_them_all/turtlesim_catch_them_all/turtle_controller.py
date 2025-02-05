@@ -16,7 +16,11 @@ from my_robot_interfaces.srv import CatchTurtle
 class TurtleControllerNode(Node):
     def __init__(self):
         super().__init__("turtle_controller")
+        self.declare_parameter("catch_closes_turtle_first", True)
 
+        self.catch_closes_turtle_first = self.get_parameter(
+            "catch_closes_turtle_first").value
+        
         # First target will always be a point on top right side
         self.turtle_to_catch = None
         self.pose = None
@@ -45,8 +49,23 @@ class TurtleControllerNode(Node):
 
     def callback_alive_turtles(self, msg):
         if len(msg.turtles) > 0:
-            self.turtle_to_catch = msg.turtles[0]
-    
+            if self.catch_closes_turtle_first:
+                closest_turtle = None
+                closest_turtle_distance = None
+
+                for turtle in msg.turtles:
+                    x_coheficient = turtle.x - self.pose.x
+                    y_coheficient = turtle.y - self.pose.y
+                    distance = math.sqrt(
+                        x_coheficient * x_coheficient + y_coheficient * y_coheficient
+                    )
+                    if closest_turtle == None or distance < closest_turtle_distance:
+                        closest_turtle = turtle
+                        closest_turtle_distance = distance
+                self.turtle_to_catch = closest_turtle
+            else:
+                self.turtle_to_catch = msg.turtles[0]
+
     def loop_controller(self):
         """
         Main control loop of turtle.
@@ -82,11 +101,11 @@ class TurtleControllerNode(Node):
             # target reached!
             twist_message.linear.x = 0.0
             twist_message.angular.z = 0.0
-            
+
             # Call the service to catch the turtle
             self.call_catch_turtle_server(self.turtle_to_catch.name)
             self.turtle_to_catch = None
-            
+
         self.velocity_publisher.publish(twist_message)
 
     def call_catch_turtle_server(self, turtle_name):
