@@ -6,9 +6,11 @@ from rclpy.node import Node
 
 
 from turtlesim.msg import Pose
+from functools import partial
 from geometry_msgs.msg import Twist
 from my_robot_interfaces.msg import Turtle
 from my_robot_interfaces.msg import TurtleArray
+from my_robot_interfaces.srv import CatchTurtle
 
 
 class TurtleControllerNode(Node):
@@ -77,22 +79,37 @@ class TurtleControllerNode(Node):
 
             twist_message.angular.z = 6 * diff
         else:
+            # target reached!
             twist_message.linear.x = 0.0
             twist_message.angular.z = 0.0
-            self.update_target()
-            self.get_logger().info("Target Updated Sucesfully")
-
+            
+            # Call the service to catch the turtle
+            self.call_catch_turtle_server(self.turtle_to_catch.name)
+            self.turtle_to_catch = None
+            
         self.velocity_publisher.publish(twist_message)
 
-    def update_target(self):
-        """
-        Method that Updates the target of the turtle
-        Useful for debugging the turtle trajectory and
-        control loop
-        """
-        self.get_logger().debug("This is a debug message from update_target")
-        self.target_x = random.randint(0, 10)
-        self.target_y = random.randint(0, 10)
+    def call_catch_turtle_server(self, turtle_name):
+
+        client = self.create_client(CatchTurtle, "catch_turtle")
+        while not client.wait_for_service(1.0):
+            self.get_logger().warn("Waiting for server to Kill turtle")
+
+        request = CatchTurtle.Request()
+        request.name = turtle_name
+
+        future = client.call_async(request)
+        future.add_done_callback(
+            partial(self.callback_call_catch_turtle, turtle_name=turtle_name)
+        )
+
+    def callback_call_catch_turtle(self, future, turtle_name):
+        try:
+            response = future.result()
+            if not response.success:
+                self.get_logger().info("Turtle " + turtle_name + " could not be caught")
+        except Exception as e:
+            self.get_logger().error("Service call failed %r" % (e,))
 
 
 def main(args=None):
